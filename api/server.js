@@ -6,17 +6,51 @@ dotenv.config({ path: "./config.env" });
 
 const DB = process.env.MONGODB_URI;
 
-mongoose
-  .connect(DB)
-  .then(() => {
+// Connection cache for serverless
+let isConnected = false;
+
+const connectDB = async () => {
+  if (isConnected) {
+    console.log("Using existing database connection");
+    return;
+  }
+
+  try {
+    const db = await mongoose.connect(DB, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+
+    isConnected = db.connections[0].readyState === 1;
     console.log("DB connection successful");
-  })
-  .catch((err) => {
-    console.log("DB connection error", err.message);
-  });
+  } catch (error) {
+    console.error("DB connection error:", error.message);
+    throw error;
+  }
+};
 
-const port = process.env.PORT || 3000;
-
-app.listen(port, () => {
-  console.log(`Server is running on port ${process.env.PORT}`);
+// Connect to DB before handling any request
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    res.status(500).json({
+      message: "Database connection failed",
+      error: error.message,
+    });
+  }
 });
+
+// Export for Vercel (serverless)
+module.exports = app;
+
+// For local development only
+if (require.main === module) {
+  const port = process.env.PORT || 3000;
+  connectDB().then(() => {
+    app.listen(port, () => {
+      console.log(`Server is running on port ${port}`);
+    });
+  });
+}
