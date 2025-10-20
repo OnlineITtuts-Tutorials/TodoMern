@@ -6,9 +6,11 @@ const app = express();
 
 // Middleware
 app.use(express.json());
+
 app.use(
   cors({
-    origin: "*",
+    origin: ["https://todo-mern-tau.vercel.app/", "http://localhost:3000"],
+    credentials: true,
   })
 );
 
